@@ -43,7 +43,7 @@ namespace octree_map
         double hfov, double vfov, double resolution, 
         double sensor_range, double map_size,
         pcl::PointCloud<pcl::PointXYZ>::Ptr obs_pcl, 
-        bool use_sensor)
+        bool use_sensor, double dist_thres)
     {
         int horizontal_pixels = (int)ceil(
             (sensor_range * tan(hfov/2)) / resolution);
@@ -55,53 +55,60 @@ namespace octree_map
         double horizontal_step = 
             hfov / (double)horizontal_pixels;
 
-        sensing_offset.clear();
-        for (int i = 0; i < vertical_pixels; i++)
-            for (int j = 0; j < horizontal_pixels; j++)
-            {
-                Eigen::Vector3d q = Eigen::Vector3d(
-                    sensor_range * cos(j*horizontal_step - hfov/2.0),
-                    sensor_range * sin(j*horizontal_step - hfov/2.0),
-                    sensor_range * tan(i*vertical_step - vfov/2.0)
-                );
-                sensing_offset.push_back(q);
-            }
-
         local_cloud = pcl::PointCloud<pcl::PointXYZ>::Ptr(
             new pcl::PointCloud<pcl::PointXYZ>());
 
-        global_map = {};
-        global_map.r = resolution;
-        global_map.use_sensor = use_sensor;
-        sliding_map_size = map_size;
+        global_param = {};
+        global_param.r = resolution;
+        global_param.use_sensor = use_sensor;
+        global_param.s_r = sensor_range;
+        global_param.radius = map_size/2;
+        distance_threshold = dist_thres;
 
-        if (!global_map.use_sensor)
+        if (!global_param.use_sensor)
         {
             octree_global.deleteTree();
             // Set the resolution for the octree
-            octree_global.setResolution(global_map.r);
+            octree_global.setResolution(global_param.r);
             octree_global.setInputCloud(obs_pcl);
             octree_global.addPointsFromInputCloud();
             octree_global.getBoundingBox(
-                global_map.mn_b.x(), global_map.mn_b.y(), global_map.mn_b.z(),
-                global_map.mx_b.x(), global_map.mx_b.y(), global_map.mx_b.z());
+                global_param.mn_b.x(), global_param.mn_b.y(), global_param.mn_b.z(),
+                global_param.mx_b.x(), global_param.mx_b.y(), global_param.mx_b.z());
         
             const float min_value = 
                 std::numeric_limits<float>::epsilon();
 
-            global_map.m_k[0] =
-                static_cast<uint8_t>(std::ceil(
-                (global_map.mx_b.x() - global_map.mn_b.x() - min_value) / global_map.r));
-            global_map.m_k[1] =
-                static_cast<uint8_t>(std::ceil(
-                (global_map.mx_b.y() - global_map.mn_b.y() - min_value) / global_map.r));
-            global_map.m_k[2] =
-                static_cast<uint8_t>(std::ceil(
-                (global_map.mx_b.z() - global_map.mn_b.z() - min_value) / global_map.r));
+            global_param.m_k[0] =
+                (size_t)(std::ceil(
+                (global_param.mx_b.x() - global_param.mn_b.x() - min_value) / global_param.r));
+            global_param.m_k[1] =
+                (size_t)(std::ceil(
+                (global_param.mx_b.y() - global_param.mn_b.y() - min_value) / global_param.r));
+            global_param.m_k[2] =
+                (size_t)(std::ceil(
+                (global_param.mx_b.z() - global_param.mn_b.z() - min_value) / global_param.r));
+        
+            // std::cout << std::ceil((global_param.mx_b.x() - global_param.mn_b.x() - min_value) / global_param.r) << " " 
+            //     << std::ceil((global_param.mx_b.y() - global_param.mn_b.y() - min_value) / global_param.r)
+            //     << " " << std::ceil((global_param.mx_b.z() - global_param.mn_b.z() - min_value) / global_param.r) << std::endl;
+
+            sensing_offset.clear();
+            for (int i = 0; i < vertical_pixels; i++)
+                for (int j = 0; j < horizontal_pixels; j++)
+                {
+                    Eigen::Vector3d q = Eigen::Vector3d(
+                        sensor_range * cos(j*horizontal_step - hfov/2.0),
+                        sensor_range * sin(j*horizontal_step - hfov/2.0),
+                        sensor_range * tan(i*vertical_step - vfov/2.0)
+                    );
+                    sensing_offset.push_back(q);
+                }
+
         }
 
         // Set the resolution for the octree
-        octree_local.setResolution(global_map.r);
+        octree_local.setResolution(global_param.r);
     
         initialized = true;
     }
@@ -125,7 +132,7 @@ namespace octree_map
         gen_octree_key_for_point(octree_origin, origin_key);
         gen_octree_key_for_point(octree_end, end_key);
 
-        vector<Eigen::Vector3i> offset_list;
+        std::vector<Eigen::Vector3i> offset_list;
         
         int extra_safety_volume = 1;
         // Setup the neighbouring boxes
@@ -196,13 +203,13 @@ namespace octree_map
         // define point to leaf node voxel center
         point.x = static_cast<float>(
             (static_cast<double>(key.x) + 0.5f) * 
-            global_map.r + global_map.mn_b.x());
+            global_param.r + global_param.mn_b.x());
         point.y = static_cast<float>(
             (static_cast<double>(key.y) + 0.5f) * 
-            global_map.r + global_map.mn_b.y());
+            global_param.r + global_param.mn_b.y());
         point.z =static_cast<float>(
             (static_cast<double>(key.z) + 0.5f) * 
-            global_map.r + global_map.mn_b.z());
+            global_param.r + global_param.mn_b.z());
     }
 
     /** 
@@ -216,13 +223,17 @@ namespace octree_map
         pcl::octree::OctreeKey& key_arg)
     {
         // calculate integer key for point coordinates
-        key_arg.x = static_cast<uint8_t>((point_arg.x - global_map.mn_b.x()) / global_map.r);
-        key_arg.y = static_cast<uint8_t>((point_arg.y - global_map.mn_b.y()) / global_map.r);
-        key_arg.z = static_cast<uint8_t>((point_arg.z - global_map.mn_b.z()) / global_map.r);
-        
-        assert(key_arg.x <= global_map.m_k[0]);
-        assert(key_arg.y <= global_map.m_k[1]);
-        assert(key_arg.z <= global_map.m_k[2]);
+        key_arg.x = static_cast<uint8_t>((point_arg.x - global_param.mn_b.x()) / global_param.r);
+        key_arg.y = static_cast<uint8_t>((point_arg.y - global_param.mn_b.y()) / global_param.r);
+        key_arg.z = static_cast<uint8_t>((point_arg.z - global_param.mn_b.z()) / global_param.r);
+
+        // std::cout << global_param.m_k[0] << " " << global_param.m_k[1] 
+        //     << " " << global_param.m_k[2] << std::endl;
+        // std::cout << key_arg.x << " " << key_arg.y << " " << key_arg.z << std::endl;
+
+        assert(key_arg.x <= global_param.m_k[0]);
+        assert(key_arg.y <= global_param.m_k[1]);
+        assert(key_arg.z <= global_param.m_k[2]);
     }
 
 
@@ -245,7 +256,7 @@ namespace octree_map
             Eigen::Vector3d x = p + rotatedP.vec();
 
             Eigen::Vector3d intersect;
-            if (!check_approx_intersection_by_segment(
+            if (!get_line_validity(
                 p, x, intersect))
             {
                 // Eigen::Vector3d direction = (x - p).normalized(); 
@@ -290,8 +301,10 @@ namespace octree_map
         
         Eigen::Vector3d voxel_center;
         get_estimated_center_of_point(p, voxel_center);
-        extract_point_cloud_within_boundary(
-            p, sliding_map_size/2);
+
+        extract_point_cloud_within_boundary(p);
+        
+        update_pos_vector(p);
 
         // double ray_n_acc_time = duration<double>(system_clock::now() - ray_timer).count();
         // std::cout << "raycast and accumulation time (" << KBLU << ray_n_acc_time * 1000 << KNRM << "ms)" << std::endl;
@@ -322,8 +335,10 @@ namespace octree_map
         
         Eigen::Vector3d voxel_center;
         get_estimated_center_of_point(p, voxel_center);
-        extract_point_cloud_within_boundary(
-            p, sliding_map_size/2);
+
+        extract_point_cloud_within_boundary(p);
+
+        update_pos_vector(p);
 
         return local_cloud;
     }
@@ -331,20 +346,20 @@ namespace octree_map
     void sliding_map::get_estimated_center_of_point(
         Eigen::Vector3d p, Eigen::Vector3d &est)
     {
-        Eigen::Vector3d dist = (global_map.mn_b - p);
-        // Eigen::Vector3d v = (global_map.mn_b - p).normalized();
-        int nx = (int)round(abs(dist.x())/global_map.r);
-        int ny = (int)round(abs(dist.y())/global_map.r);
-        int nz = (int)round(abs(dist.z())/global_map.r);
+        Eigen::Vector3d dist = (global_param.mn_b - p);
+        // Eigen::Vector3d v = (global_param.mn_b - p).normalized();
+        int nx = (int)round(abs(dist.x())/global_param.r);
+        int ny = (int)round(abs(dist.y())/global_param.r);
+        int nz = (int)round(abs(dist.z())/global_param.r);
         est = Eigen::Vector3d(
-            (nx + 0.5f)*global_map.r + global_map.mn_b.x(),
-            (ny + 0.5f)*global_map.r + global_map.mn_b.y(),
-            (nz + 0.5f)*global_map.r + global_map.mn_b.z()
+            (nx + 0.5f)*global_param.r + global_param.mn_b.x(),
+            (ny + 0.5f)*global_param.r + global_param.mn_b.y(),
+            (nz + 0.5f)*global_param.r + global_param.mn_b.z()
         );
     }
 
     void sliding_map::extract_point_cloud_within_boundary(
-        Eigen::Vector3d c, double r)
+        Eigen::Vector3d c)
     {
         if (!local_cloud->points.empty())
             local_cloud->points.clear();
@@ -352,7 +367,7 @@ namespace octree_map
         if (occupied_size == 0)
             return;
 
-        double rr = pow(r, 2);
+        double rr = pow(global_param.radius, 2);
         for (auto &v : occupied_voxels)
         {
             double xx = pow(v.x - c.x(), 2);
