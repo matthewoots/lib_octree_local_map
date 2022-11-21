@@ -174,6 +174,8 @@ namespace octree_map
                 std::lock_guard<std::mutex> pose_lock(
                     update_pose_mutex);
 
+                // time_point<std::chrono::system_clock> polygon_timer = system_clock::now();
+
                 std::vector<triangles> tri_vector;
 
                 if (key_pos.size() < 2)
@@ -193,17 +195,17 @@ namespace octree_map
                     save_polygon = false;
                 }
 
-                // for (size_t i = 0; i < key_pos.size()-1; i++)
-                // {
-                //     Polyhedron3D poly = get_polyhedron_from_line(
-                //         std::make_pair(key_pos[i], key_pos[i+1]));
+                for (size_t i = 0; i < key_pos.size()-1; i++)
+                {
+                    Polyhedron3D poly = get_polyhedron_from_line(
+                        std::make_pair(key_pos[i], key_pos[i+1]));
 
-                //     vec_E<vec_Vec3f> vert = 
-                //         get_vertices_from_polygons(poly);
+                    vec_E<vec_Vec3f> vert = 
+                        get_vertices_from_polygons(poly);
                     
-                //     tri_vector.push_back(
-                //         get_triangles_of_polygon(vert));
-                // }
+                    tri_vector.push_back(
+                        get_triangles_of_polygon(vert));
+                }
 
                 Polyhedron3D poly = get_polyhedron_from_line(
                     std::make_pair(key_pos[key_pos.size()-2], key_pos[key_pos.size()-1]));
@@ -216,6 +218,10 @@ namespace octree_map
 
                 for (triangles &tri : safe_tri_vector)
                     tri_vector.push_back(tri);
+
+                // double polygon_time = duration<double>(system_clock::now() - polygon_timer).count();
+                // std::cout << "polygon time (" << KBLU << polygon_time * 1000 << KNRM << "ms) cloud size (" <<
+                //     occupied_size << ")" << std::endl;
 
                 return tri_vector;
             }

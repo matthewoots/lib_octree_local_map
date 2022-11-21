@@ -281,11 +281,11 @@ namespace octree_map
         sliding_map::get_sliding_map_from_global(
         Eigen::Vector3d p, Eigen::Quaterniond q)
     {
-        // time_point<std::chrono::system_clock> ray_timer = system_clock::now();
+        time_point<std::chrono::system_clock> ray_timer = system_clock::now();
         pcl::PointCloud<pcl::PointXYZ>::Ptr 
             local_cloud_current = get_raycast_on_pcl(p, q);
-        // double ray_time = duration<double>(system_clock::now() - ray_timer).count();
-        // std::cout << "raycast time (" << KBLU << ray_time * 1000 << KNRM << "ms)" << std::endl;
+        double ray_time = duration<double>(system_clock::now() - ray_timer).count();
+        std::cout << "raycast time (" << KBLU << ray_time * 1000 << KNRM << "ms)" << std::endl;
 
         if (!local_cloud_current->points.empty())
         {
@@ -306,8 +306,11 @@ namespace octree_map
         
         update_pos_vector(p);
 
-        // double ray_n_acc_time = duration<double>(system_clock::now() - ray_timer).count();
-        // std::cout << "raycast and accumulation time (" << KBLU << ray_n_acc_time * 1000 << KNRM << "ms)" << std::endl;
+        double extraction_time = duration<double>(system_clock::now() - ray_timer).count() - ray_time;
+        std::cout << "extraction time (" << KBLU << extraction_time * 1000 << KNRM << "ms)" << std::endl;
+
+        double ray_n_acc_time = duration<double>(system_clock::now() - ray_timer).count();
+        std::cout << "raycast and accumulation time (" << KBLU << ray_n_acc_time * 1000 << KNRM << "ms)" << std::endl;
 
         return local_cloud;
     }
