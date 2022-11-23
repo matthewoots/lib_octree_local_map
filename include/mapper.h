@@ -195,17 +195,17 @@ namespace octree_map
                     save_polygon = false;
                 }
 
-                for (size_t i = 0; i < key_pos.size()-1; i++)
-                {
-                    Polyhedron3D poly = get_polyhedron_from_line(
-                        std::make_pair(key_pos[i], key_pos[i+1]));
+                // for (size_t i = 0; i < key_pos.size()-1; i++)
+                // {
+                //     Polyhedron3D poly = get_polyhedron_from_line(
+                //         std::make_pair(key_pos[i], key_pos[i+1]));
 
-                    vec_E<vec_Vec3f> vert = 
-                        get_vertices_from_polygons(poly);
+                //     vec_E<vec_Vec3f> vert = 
+                //         get_vertices_from_polygons(poly);
                     
-                    tri_vector.push_back(
-                        get_triangles_of_polygon(vert));
-                }
+                //     tri_vector.push_back(
+                //         get_triangles_of_polygon(vert));
+                // }
 
                 Polyhedron3D poly = get_polyhedron_from_line(
                     std::make_pair(key_pos[key_pos.size()-2], key_pos[key_pos.size()-1]));
@@ -216,8 +216,8 @@ namespace octree_map
                 tri_vector.push_back(
                     get_triangles_of_polygon(vert));
 
-                for (triangles &tri : safe_tri_vector)
-                    tri_vector.push_back(tri);
+                // for (triangles &tri : safe_tri_vector)
+                //     tri_vector.push_back(tri);
 
                 // double polygon_time = duration<double>(system_clock::now() - polygon_timer).count();
                 // std::cout << "polygon time (" << KBLU << polygon_time * 1000 << KNRM << "ms) cloud size (" <<
@@ -383,23 +383,23 @@ namespace octree_map
                     key_pos.push_back(p);
                 }
                 
-                int remove_index = -1;
-                for (size_t i = key_pos.size()-1; i >= 0; i--)
-                {
-                    double xx = pow(key_pos[i].x() - p.x(), 2);
-                    double yy = pow(key_pos[i].y() - p.y(), 2);
-                    double zz = pow(key_pos[i].z() - p.z(), 2);
-                    if (xx + yy + zz > pow(global_param.radius,2))
-                    {
-                        remove_index = (int)i;
-                        break;
-                    }
-                }
-                if (remove_index != -1)
-                {
-                    for (int i = 0; i <= remove_index; i++)
-                        key_pos.erase(key_pos.begin());
-                }
+                // int remove_index = -1;
+                // for (size_t i = key_pos.size()-1; i >= 0; i--)
+                // {
+                //     double xx = pow(key_pos[i].x() - p.x(), 2);
+                //     double yy = pow(key_pos[i].y() - p.y(), 2);
+                //     double zz = pow(key_pos[i].z() - p.z(), 2);
+                //     if (xx + yy + zz > pow(global_param.radius,2))
+                //     {
+                //         remove_index = (int)i;
+                //         break;
+                //     }
+                // }
+                // if (remove_index != -1)
+                // {
+                //     for (int i = 0; i <= remove_index; i++)
+                //         key_pos.erase(key_pos.begin());
+                // }
             };
 
             convex::Polyhedron3D 
@@ -444,7 +444,7 @@ namespace octree_map
                 decomp.set_obs(obs_vec);
                 // Only try to find cvx decomp in the Minkowski sum of JPS and
                 // this box (I think) par_.drone_radius
-                decomp.set_local_bbox(Vec3f(2.5, 2.5, 1.5));
+                decomp.set_local_bbox(Vec3f(1.5, 1.5, 1.0));
                 decomp.dilate(0);
 
                 return decomp.get_polyhedron();

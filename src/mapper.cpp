@@ -281,11 +281,11 @@ namespace octree_map
         sliding_map::get_sliding_map_from_global(
         Eigen::Vector3d p, Eigen::Quaterniond q)
     {
-        time_point<std::chrono::system_clock> ray_timer = system_clock::now();
+        // time_point<std::chrono::system_clock> ray_timer = system_clock::now();
         pcl::PointCloud<pcl::PointXYZ>::Ptr 
             local_cloud_current = get_raycast_on_pcl(p, q);
-        double ray_time = duration<double>(system_clock::now() - ray_timer).count();
-        std::cout << "raycast time (" << KBLU << ray_time * 1000 << KNRM << "ms)" << std::endl;
+        // double ray_time = duration<double>(system_clock::now() - ray_timer).count();
+        // std::cout << "raycast time (" << KBLU << ray_time * 1000 << KNRM << "ms)" << std::endl;
 
         if (!local_cloud_current->points.empty())
         {
@@ -298,19 +298,27 @@ namespace octree_map
 
         occupied_size = 
             octree_local.getOccupiedVoxelCenters(occupied_voxels);
+
+        // printf("occupied voxels\n");
         
         Eigen::Vector3d voxel_center;
         get_estimated_center_of_point(p, voxel_center);
 
+        // printf("get_estimated_center_of_point\n");
+
         extract_point_cloud_within_boundary(p);
+
+        // printf("extract_point_cloud_within_boundary\n");
         
         update_pos_vector(p);
 
-        double extraction_time = duration<double>(system_clock::now() - ray_timer).count() - ray_time;
-        std::cout << "extraction time (" << KBLU << extraction_time * 1000 << KNRM << "ms)" << std::endl;
+        // printf("update_pos_vector\n");
 
-        double ray_n_acc_time = duration<double>(system_clock::now() - ray_timer).count();
-        std::cout << "raycast and accumulation time (" << KBLU << ray_n_acc_time * 1000 << KNRM << "ms)" << std::endl;
+        // double extraction_time = duration<double>(system_clock::now() - ray_timer).count() - ray_time;
+        // std::cout << "extraction time (" << KBLU << extraction_time * 1000 << KNRM << "ms)" << std::endl;
+
+        // double ray_n_acc_time = duration<double>(system_clock::now() - ray_timer).count();
+        // std::cout << "raycast and accumulation time (" << KBLU << ray_n_acc_time * 1000 << KNRM << "ms)" << std::endl;
 
         return local_cloud;
     }
