@@ -1,3 +1,0 @@
-[submodule "lib_convex_decomp"]
-	path = lib_convex_decomp
-	url = git@github.com:matthewoots/lib_convex_decomp.git

@@ -43,7 +43,7 @@ namespace octree_map
         double hfov, double vfov, double resolution, 
         double sensor_range, double map_size,
         pcl::PointCloud<pcl::PointXYZ>::Ptr obs_pcl, 
-        bool use_sensor, double dist_thres)
+        bool use_sensor)
     {
         int horizontal_pixels = (int)ceil(
             (sensor_range * tan(hfov/2)) / resolution);
@@ -63,7 +63,6 @@ namespace octree_map
         global_param.use_sensor = use_sensor;
         global_param.s_r = sensor_range;
         global_param.radius = map_size/2;
-        distance_threshold = dist_thres;
 
         if (!global_param.use_sensor)
         {
@@ -298,21 +297,11 @@ namespace octree_map
 
         occupied_size = 
             octree_local.getOccupiedVoxelCenters(occupied_voxels);
-
-        // printf("occupied voxels\n");
         
         Eigen::Vector3d voxel_center;
         get_estimated_center_of_point(p, voxel_center);
 
-        // printf("get_estimated_center_of_point\n");
-
         extract_point_cloud_within_boundary(p);
-
-        // printf("extract_point_cloud_within_boundary\n");
-        
-        update_pos_vector(p);
-
-        // printf("update_pos_vector\n");
 
         // double extraction_time = duration<double>(system_clock::now() - ray_timer).count() - ray_time;
         // std::cout << "extraction time (" << KBLU << extraction_time * 1000 << KNRM << "ms)" << std::endl;
@@ -348,8 +337,6 @@ namespace octree_map
         get_estimated_center_of_point(p, voxel_center);
 
         extract_point_cloud_within_boundary(p);
-
-        update_pos_vector(p);
 
         return local_cloud;
     }

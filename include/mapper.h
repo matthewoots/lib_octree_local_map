@@ -44,11 +44,6 @@
 // #include <pcl/octree/octree.h>
 #include <pcl/octree/octree_search.h>
 
-// Convex Decomposition includes
-// #include <decomp_util/ellipsoid_decomp.h>
-
-// using namespace Eigen;
-// using namespace std;
 using namespace std::chrono;
 
 #define KNRM  "\033[0m"
@@ -62,10 +57,6 @@ using namespace std::chrono;
 
 namespace octree_map
 {
-    namespace convex{
-        #include <decomp_util/line_segment.h>
-    }
-
     class sliding_map
     {
         public:
@@ -91,12 +82,6 @@ namespace octree_map
                 size_t m_k[3]; // max key for the octree
             };
 
-            struct triangles 
-            {
-                std::vector<Eigen::Vector3i> tri_idx;
-                std::vector<Eigen::Vector3d> vert;
-            };
-
             pcl::octree::OctreePointCloudSearch<pcl::PointXYZ> octree_global = 
                 decltype(octree_global)(0.1);
             pcl::octree::OctreePointCloudSearch<pcl::PointXYZ> octree_local = 
@@ -110,19 +95,11 @@ namespace octree_map
 
             int occupied_size = 0;
             
-            double distance_threshold;
-
             bool initialized;
-            bool save_polygon;
 
-            std::vector<Eigen::Vector3d> key_pos;
             std::vector<Eigen::Vector3d> sensing_offset;
 
-            convex::vec_E<convex::Polyhedron<3>> poly_safe;
-
             std::mutex update_pose_mutex;
-
-            std::vector<triangles> safe_tri_vector;
 
             /** 
              * @brief mapper
@@ -148,7 +125,7 @@ namespace octree_map
                 double hfov, double vfov, double resolution, 
                 double sensor_range, double map_size,
                 pcl::PointCloud<pcl::PointXYZ>::Ptr obs_pcl, 
-                bool use_sensor, double dist_thres);
+                bool use_sensor);
 
             /** 
              * @brief get_sliding_map_from_global
@@ -166,65 +143,6 @@ namespace octree_map
                 get_sliding_map_from_sensor(
                 pcl::PointCloud<pcl::PointXYZ>::Ptr pcl,    
                 Eigen::Vector3d p, Eigen::Quaterniond q);
-
-            std::vector<triangles> visualize_safe_corridor()
-            {
-                using namespace convex;
-
-                std::lock_guard<std::mutex> pose_lock(
-                    update_pose_mutex);
-
-                // time_point<std::chrono::system_clock> polygon_timer = system_clock::now();
-
-                std::vector<triangles> tri_vector;
-
-                if (key_pos.size() < 2)
-                    return tri_vector;
-
-                if (save_polygon && key_pos.size() >= 3)
-                {
-                    Polyhedron3D poly = get_polyhedron_from_line(
-                        std::make_pair(key_pos[key_pos.size()-3], key_pos[key_pos.size()-2]));
-
-                    vec_E<vec_Vec3f> vert = 
-                        get_vertices_from_polygons(poly);
-                    
-                    safe_tri_vector.push_back(
-                        get_triangles_of_polygon(vert));
-                    
-                    save_polygon = false;
-                }
-
-                // for (size_t i = 0; i < key_pos.size()-1; i++)
-                // {
-                //     Polyhedron3D poly = get_polyhedron_from_line(
-                //         std::make_pair(key_pos[i], key_pos[i+1]));
-
-                //     vec_E<vec_Vec3f> vert = 
-                //         get_vertices_from_polygons(poly);
-                    
-                //     tri_vector.push_back(
-                //         get_triangles_of_polygon(vert));
-                // }
-
-                Polyhedron3D poly = get_polyhedron_from_line(
-                    std::make_pair(key_pos[key_pos.size()-2], key_pos[key_pos.size()-1]));
-
-                vec_E<vec_Vec3f> vert = 
-                    get_vertices_from_polygons(poly);
-                
-                tri_vector.push_back(
-                    get_triangles_of_polygon(vert));
-
-                // for (triangles &tri : safe_tri_vector)
-                //     tri_vector.push_back(tri);
-
-                // double polygon_time = duration<double>(system_clock::now() - polygon_timer).count();
-                // std::cout << "polygon time (" << KBLU << polygon_time * 1000 << KNRM << "ms) cloud size (" <<
-                //     occupied_size << ")" << std::endl;
-
-                return tri_vector;
-            }
 
         private:
 
@@ -354,218 +272,6 @@ namespace octree_map
                     p_fd, q_fd, out);
                 
             }
-
-            void update_pos_vector(Eigen::Vector3d &p)
-            {
-                std::lock_guard<std::mutex> pose_lock(
-                    update_pose_mutex);
-                
-                if (key_pos.empty())
-                {
-                    key_pos.push_back(p);
-                    key_pos.push_back(p);
-                    return;
-                }
-
-                double distance_travelled = 
-                    (p - key_pos[key_pos.size()-2]).norm();
-                
-                if (distance_travelled > distance_threshold)
-                {
-                    key_pos.erase(key_pos.end());
-                    key_pos.push_back(p);
-                    key_pos.push_back(p);
-                    save_polygon = true;
-                }
-                else
-                {
-                    key_pos.erase(key_pos.end());
-                    key_pos.push_back(p);
-                }
-                
-                // int remove_index = -1;
-                // for (size_t i = key_pos.size()-1; i >= 0; i--)
-                // {
-                //     double xx = pow(key_pos[i].x() - p.x(), 2);
-                //     double yy = pow(key_pos[i].y() - p.y(), 2);
-                //     double zz = pow(key_pos[i].z() - p.z(), 2);
-                //     if (xx + yy + zz > pow(global_param.radius,2))
-                //     {
-                //         remove_index = (int)i;
-                //         break;
-                //     }
-                // }
-                // if (remove_index != -1)
-                // {
-                //     for (int i = 0; i <= remove_index; i++)
-                //         key_pos.erase(key_pos.begin());
-                // }
-            };
-
-            convex::Polyhedron3D 
-                get_polyhedron_from_line(
-                std::pair<Eigen::Vector3d, Eigen::Vector3d> line)
-            {
-                using namespace convex;
-
-                vec_Vec3f obs_vec; // Vector that contains the occupied points
-                
-                // Eigen::Vector3d mid = (line.first + line.second) / 2.0;
-                // // inflated radius
-                // double radius = (line.first - line.second).norm() * 1.5;
-
-                // std::vector<int> pointIdxRadiusSearch;
-                // std::vector<float> pointRadiusSquaredDistance;
-
-                // if (octree_local.radiusSearch(
-                //     pcl::PointXYZ(mid.x(), mid.y(), mid.z()), 
-                //     radius, pointIdxRadiusSearch, pointRadiusSquaredDistance) > 0)
-                // {
-                //     for (std::size_t i = 0; i < pointIdxRadiusSearch.size(); ++i)
-                //     {
-                //         obs_vec.push_back(Vec3f(
-                //             (*local_cloud)[pointIdxRadiusSearch[i]].x, 
-                //             (*local_cloud)[pointIdxRadiusSearch[i]].y, 
-                //             (*local_cloud)[pointIdxRadiusSearch[i]].z));
-                        
-                //     }
-                // }
-
-                for (pcl::PointXYZ &p : local_cloud->points)
-                    obs_vec.push_back(Vec3f(p.x, p.y, p.z));
-
-                Vec3f pos1(
-                    line.first.x(), line.first.y(), line.first.z());
-                Vec3f pos2(
-                    line.second.x(), line.second.y(), line.second.z());
-
-                LineSegment3D decomp(pos1, pos2);
-
-                decomp.set_obs(obs_vec);
-                // Only try to find cvx decomp in the Minkowski sum of JPS and
-                // this box (I think) par_.drone_radius
-                decomp.set_local_bbox(Vec3f(1.5, 1.5, 1.0));
-                decomp.dilate(0);
-
-                return decomp.get_polyhedron();
-            }
-
-            /**
-             * @brief get_vertices_from_polygons
-             * https://github.com/sikang/DecompROS cal_vertices
-             * @param poly 
-             * @return vec_E<vec_Vec3f> 
-             **/
-            inline convex::vec_E<convex::vec_Vec3f> 
-                get_vertices_from_polygons(
-                const convex::Polyhedron3D &poly) 
-            {
-                using namespace convex;
-                
-                vec_E<vec_Vec3f> bds;
-                const auto vts = poly.hyperplanes();
-                
-                // for each plane, find lines on it
-                for (unsigned int i = 0; i < vts.size(); i++) 
-                {
-                    const Vec3f t = vts[i].p_;
-                    const Vec3f n = vts[i].n_;
-                    const Quatf q = Quatf::FromTwoVectors(Vec3f(0, 0, 1), n);
-                    const Mat3f R(q); // body to world
-                    vec_E<std::pair<Vec2f, Vec2f>> lines;
-                    for (unsigned int j = 0; j < vts.size(); j++) {
-                    if (j == i)
-                        continue;
-                    Vec3f nw = vts[j].n_;
-                    Vec3f nb = R.transpose() * nw;
-                    decimal_t bb = vts[j].p_.dot(nw) - nw.dot(t);
-                    Vec2f v = Vec3f(0, 0, 1).cross(nb).topRows<2>(); // line direction
-                    Vec2f p;                                         // point on the line
-                    if (nb(1) != 0)
-                        p << 0, bb / nb(1);
-                    else if (nb(0) != 0)
-                        p << bb / nb(0), 0;
-                    else
-                        continue;
-                    lines.push_back(std::make_pair(v, p));
-                    }
-
-                    // find all intersect points
-                    vec_Vec2f pts = line_intersects(lines);
-                    
-                    // filter out points inside polytope
-                    vec_Vec2f pts_inside;
-                    for (const auto &it : pts) {
-                    Vec3f p = R * Vec3f(it(0), it(1), 0) + t; // convert to world frame
-                    if (poly.inside(p))
-                        pts_inside.push_back(it);
-                    }
-
-                    if (pts_inside.size() > 2) {
-                    // sort in plane frame
-                    pts_inside = sort_pts(pts_inside);
-
-                    // transform to world frame
-                    vec_Vec3f points_valid;
-                    for (auto &it : pts_inside)
-                        points_valid.push_back(R * Vec3f(it(0), it(1), 0) + t);
-
-                    // insert resulting polygon
-                    bds.push_back(points_valid);
-                    }
-                }
-
-                return bds;
-            }
-
-            /**
-             * @brief get_triangles_of_polygon
-             * https://github.com/sikang/DecompROS setMessage
-             * @param bds 
-             * @return triangles
-             **/
-            triangles get_triangles_of_polygon(
-                const convex::vec_E<convex::vec_Vec3f> &bds) 
-            {
-                using namespace convex;
-
-                triangles t;
-
-                if (bds.empty())
-                    return t;
-
-                int free_cnt = 0;
-                for (const auto &vs: bds) 
-                {
-                    if (vs.size() > 2) 
-                    {
-                        Vec3f p0 = vs[0];
-                        Vec3f p1 = vs[1];
-                        Vec3f p2 = vs[2];
-                        Vec3f n = (p2-p0).cross(p1-p0);
-                        n = n.normalized();
-                        if(std::isnan(n(0)))
-                        n = Vec3f(0, 0, -1);
-
-                        int ref_cnt = free_cnt;
-                        // Ogre::Vector3 normal(n(0), n(1), n(2));
-                        for (unsigned int i = 0; i < vs.size(); i++) 
-                        {
-                            // obj_->addVertex(Ogre::Vector3(vs[i](0), vs[i](1), vs[i](2)), normal);
-                            t.vert.push_back(
-                                Eigen::Vector3d(vs[i](0), vs[i](1), vs[i](2)));
-                            if (i > 1 && i < vs.size())
-                                t.tri_idx.push_back(
-                                    Eigen::Vector3i(ref_cnt, free_cnt - 1, free_cnt));
-                                // obj_->addTriangle(ref_cnt, free_cnt - 1, free_cnt);
-                            free_cnt++;
-                        }
-                    }
-                }
-
-                return t;
-            }
-
     };
 }
 
